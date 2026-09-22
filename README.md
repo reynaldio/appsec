@@ -1,5 +1,7 @@
 # Pagination-aware GraphQL collection probing for BOLA
 
+By [Reynaldi Oeoen](https://www.linkedin.com/in/reynaldio) · authorized application-security testing
+
 A technique writeup on finding Broken Object-Level Authorization (BOLA / IDOR)
 in GraphQL APIs whose collection fields require pagination arguments. This is a
 methodology note from my own authorized application-security testing — no
