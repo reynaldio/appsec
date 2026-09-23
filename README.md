@@ -1,111 +1,37 @@
-# Pagination-aware GraphQL collection probing for BOLA
+# appsec — application-security methodology notes
 
-By [Reynaldi Oeoen](https://www.linkedin.com/in/reynaldio) · authorized application-security testing
+Technique and methodology notes from my authorized application-security testing,
+by [Reynaldi Oeoen](https://www.linkedin.com/in/reynaldio). I lead cybersecurity
+work and am building an AI application-security platform; these are sanitized
+writeups of techniques and testing discipline from that work.
 
-A technique writeup on finding Broken Object-Level Authorization (BOLA / IDOR)
-in GraphQL APIs whose collection fields require pagination arguments. This is a
-methodology note from my own authorized application-security testing — no
-customer, target, or engagement is named, and all examples are generic.
+**Ground rules for everything here:**
 
-## Background
+- No customer, target, or engagement is ever named. All examples are generic.
+- Everything described is run only against systems I'm authorized to test,
+  inside an agreed scope, with scope enforced structurally (an egress allowlist),
+  not by intention.
+- Findings are backed by **recorded, reproducible executions** — a command or
+  request, the identity it ran under, the response status, and a hash of the
+  response — not by narration.
 
-Broken Object-Level Authorization is consistently the top item in the OWASP API
-Security Top 10. The classic form is an endpoint like `GET /api/orders/{id}`
-that returns any order when it should return only the caller's. GraphQL has the
-same class of flaw, but the shape is different: instead of one object id in a
-URL path, authorization has to hold across every field that resolves an object
-or a list of objects.
+## Writeups
 
-Automated BOLA probing for GraphQL usually walks the introspection schema,
-finds query fields that return object types, and issues each one with a
-low-privilege token to see whether it leaks another tenant's data. That works
-for scalar-argument lookups (`order(id: ...)`). It quietly **misses** a large
-class of fields: **collection fields that reject a query unless you supply the
-pagination arguments they require.**
+| Writeup | What it covers |
+|---|---|
+| [Pagination-aware GraphQL collection probing for BOLA](writeups/graphql-bola-pagination.md) | Finding Broken Object-Level Authorization in GraphQL collection fields that require pagination arguments — a class naive probers silently skip because the query fails schema validation before reaching the resolver. |
+| [Proving impact without exfiltration: metadata-only evidence](writeups/metadata-only-evidence.md) | How I evidence data-exposure findings (SQLi, exposed DBs, public buckets, path traversal) with metadata and oracles — proving impact without taking custody of the underlying data. |
 
-## The gap
+## Themes across the notes
 
-Many GraphQL servers model list access as a connection:
+- **Reach the code that enforces the check.** A probe that fails validation, or a
+  scan that never authenticates, tests the wrong thing. Coverage means the
+  authorization logic actually ran.
+- **Prove the smallest sufficient observation.** Impact is established by shape
+  and reach — names, counts, oracles, depth — not by exfiltrating data.
+- **Evidence is a recorded execution, reproduced independently.** A finding you
+  can't replay from a clean state isn't finished.
 
-```graphql
-type Query {
-  orders(first: Int!, after: String): OrderConnection!
-}
-```
+## Contact
 
-`first` is non-null. A naive prober that emits `{ orders { edges { node { id } } } }`
-gets a **schema validation error** back — the request never reaches the
-resolver, so the authorization behavior of `orders` is never actually tested.
-The field looks "covered" in the report because it was attempted, but the
-attempt bounced off validation before any object-level check ran. That is a
-false negative in the worst place: a list endpoint is exactly where a BOLA flaw
-leaks the most rows at once.
-
-## The technique
-
-Make the probe pagination-aware. For each collection field:
-
-1. **Read the argument types from introspection.** Identify which arguments are
-   non-null (`Int!`, `String!`, etc.) and must be filled for the query to
-   validate.
-2. **Fill required pagination arguments with valid minimal values.** `first: 1`
-   (or the smallest the schema allows) is enough to get past validation and
-   reach the resolver — you are testing authorization, not exfiltrating volume.
-3. **Select a minimal leaf set.** Ask only for an `id` (and, where present, the
-   connection's `pageInfo`) so the query is cheap and the response is easy to
-   diff. Selecting heavy nested objects just makes the request more likely to
-   error for unrelated reasons.
-4. **Drop empty argument lists.** A zero-argument collection op must be emitted
-   as `orders` with no `()` — an empty `orders()` is itself a validation error
-   and reintroduces the false negative you were trying to remove.
-5. **Issue the query under the low-privilege identity and compare.** If tenant A's
-   token returns tenant B's object ids, that is a BOLA finding.
-
-Concretely, the generated probe for the schema above becomes:
-
-```graphql
-query {
-  orders(first: 1) {
-    edges { node { id } }
-    pageInfo { hasNextPage endCursor }
-  }
-}
-```
-
-## Why "reach the resolver" is the whole point
-
-Authorization checks live in resolvers. Schema validation runs before any
-resolver executes. So any probe that fails validation is testing the schema, not
-the authorization logic — it can never observe a BOLA flaw, because the code that
-would (or wouldn't) enforce the check never ran. Making the probe satisfy
-validation is the difference between "we attempted the field" and "we tested the
-field."
-
-## Evidence discipline
-
-A finding produced this way is only worth reporting if it can be reproduced and
-shown, not asserted. The bar I hold myself to:
-
-- **The claim is backed by a recorded execution** — the exact query sent, the
-  identity it was sent under, the HTTP status, and a hash of the response body.
-- **The finding is reproduced independently** before it is treated as real —
-  run again, from a clean state, and confirm the same cross-tenant leak.
-- **Deduplicate by fingerprint, not by title** — re-running an engagement must
-  update the existing finding, not file a new one each pass.
-
-The goal is that a reader can replay the finding from the record months later
-without trusting my narration of it.
-
-## Scope and authorization
-
-Everything above is run only against systems I am authorized to test, inside an
-explicitly agreed scope. Collection probing multiplies the number of requests
-sent, so it belongs behind the same rate-limiting, scope-allowlisting, and
-authorization checks as any other active testing — never pointed at a target you
-do not have written permission to test.
-
-## References
-
-- OWASP API Security Top 10 — API1:2023 Broken Object Level Authorization
-- GraphQL spec — validation runs prior to execution (resolvers)
-- Relay Cursor Connections specification — the `first`/`after` connection model
+[LinkedIn — Reynaldi Oeoen](https://www.linkedin.com/in/reynaldio)
