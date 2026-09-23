@@ -21,6 +21,8 @@ writeups of techniques and testing discipline from that work.
 |---|---|
 | [Pagination-aware GraphQL collection probing for BOLA](writeups/graphql-bola-pagination.md) | Finding Broken Object-Level Authorization in GraphQL collection fields that require pagination arguments — a class naive probers silently skip because the query fails schema validation before reaching the resolver. |
 | [Proving impact without exfiltration: metadata-only evidence](writeups/metadata-only-evidence.md) | How I evidence data-exposure findings (SQLi, exposed DBs, public buckets, path traversal) with metadata and oracles — proving impact without taking custody of the underlying data. |
+| [Scope is a network control, not a prompt](writeups/scope-as-a-network-control.md) | Why the boundary of what automated testing may touch has to be enforced by the network (an egress allowlist that fails closed), not by a config line or a system prompt a bug or a steered agent can move. |
+| [The floor no authorization can unlock](writeups/platform-floor-off-limits.md) | A control above authorization: destinations automated testing must never reach — cloud metadata, reserved space, resolvers, gov/mil — compiled in so no allowlist or agent can widen past them. |
 
 ## Themes across the notes
 
